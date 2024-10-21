@@ -23,6 +23,13 @@
  * GP2 = DATA
  */
 
+__EEPROM_DATA(
+        0x00, 0x03, // version
+        0xFF, 0xFF,
+        0xFF, 0xFF,
+        0xFF, 0xFF
+        );
+
 void interrupt globalInterrupt() {
     if (GPIF) {
         GPIO = 0;
@@ -51,44 +58,60 @@ uint8_t crcXOR(uint8_t *buffer, uint8_t size) {
     return crc;
 }
 
-void sendByte(uint8_t data) {
-    for (uint8_t i = 0; i < 8; i++) {
+void send_bit(uint8_t v) {
+    if (v > 0) {
         BIT_HIGH;
-        if ((data << i)&0x80) __delay_ms(2 * T_MS);
-        else __delay_ms(T_MS);
+        __delay_ms(T_MS);
         BIT_LOW;
-        if ((data << i)&0x80) __delay_ms(T_MS);
-        else __delay_ms(2 * T_MS);
+        __delay_ms(2 * T_MS);
+    } else {
+        BIT_HIGH;
+        __delay_ms(2 * T_MS);
+        BIT_LOW;
+        __delay_ms(T_MS);
+    }
+}
+
+void send_stop_bit() {
+    BIT_HIGH;
+    __delay_ms(3 * T_MS);
+    BIT_LOW;
+}
+
+void send_byte(uint8_t data) {
+    for (uint8_t i = 0; i < 8; i++) {
+        send_bit((data << i) & 0x80);
     }
 }
 
 void send(uint8_t *buffer, uint8_t size) {
     for (uint8_t i = 0; i < size; i++) {
-        sendByte(buffer[i]);
+        send_byte(buffer[i]);
     }
 }
 
 void repeat(uint8_t count) {
     for (uint8_t i = 0; i < count; i++) {
-        BIT_HIGH;
-        __delay_ms(T_MS);
-        BIT_LOW;
-        __delay_ms(T_MS);
+        send_byte(0xAA);
     }
 }
 
 void main(void) {
-
-    PEIE = 0; // Peref interrupt disable
-    INTE = 0;
+#ifdef _12F675
+    ANSEL = 0x00; // Set ports as digital I/O, not analog input
+    ADCON0 = 0x00; // Shut off the A/D Converter
+#endif     
     CMCON = 0x07; // Shut off the Comparator
     VRCON = 0x00; // Shut off the Voltage Reference
 
+    PEIE = 0; // Peref interrupt disable
+    INTE = 0;
+
     GPIO = 0;
-    TRISIO = 0b00001111;
+    TRISIO = 0b00111001;
     nGPPU = 0; // enable WPU
-    WPU = 0b00001111; // setup WPU
-    IOCB = 0b00001111; // setup GPIO interrupts
+    WPU = 0b00111001; // setup WPU
+    IOCB = 0b00110000; // setup GPIO interrupts
     GPIE = 1; // enable GPIO interrupt
 
     while (1) {
@@ -115,23 +138,23 @@ void main(void) {
             uint8_t crc = crc8(data, 2);
             data[2] = crc;
 
-            uint8_t cnt = 3;
+            uint8_t cnt = 3; // about 1.5 sec
             TX_EN_PIN = 1; // enable TX
             __delay_ms(500);
 
             while (cnt > 0) {
 
                 // preambule
-                repeat(200);
+                repeat(10);
 
-                // start
-                BIT_HIGH;
-                __delay_ms(2 * T_MS);
-                BIT_LOW;
-                __delay_ms(T_MS);
+                // start byte
+                send_byte(0x0F);
 
                 // data
                 send(data, 3);
+
+                // stop bit
+                send_stop_bit();
 
                 __delay_ms(100);
                 cnt--;

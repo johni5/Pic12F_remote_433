@@ -11,12 +11,12 @@
 #include <stdint.h>
 
 #define T_MS 1
-#define DATA_PIN GP5
-#define TX_EN_PIN GP4
-#define BTN1_PIN GP0
-#define BTN2_PIN GP1
-#define BTN3_PIN GP2
-#define BTN4_PIN GP3
+#define BTN4_PIN GP0
+#define DATA_PIN GP1
+#define TX_EN_PIN GP2
+#define BTN3_PIN GP3
+#define BTN2_PIN GP4
+#define BTN1_PIN GP5
 
 #define TOGGLE_DATA if(DATA_PIN == 1) DATA_PIN = 0; else DATA_PIN = 1
 #define BIT_HIGH DATA_PIN = 1
